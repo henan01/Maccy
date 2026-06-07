@@ -47,6 +47,7 @@ jobs:
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
+            OTHER_SWIFT_FLAGS="-DMACCY_DISABLE_GLASS_EFFECT" \
             build \
             2>&1 | tee build/logs/xcodebuild.log
 

@@ -16,20 +16,28 @@ struct VisualEffectView: NSViewRepresentable {
   }
 }
 
-@available(macOS 26.0, *)
-struct GlassEffectView: NSViewRepresentable {
-  let glassEffectView = NSGlassEffectView()
+#if !MACCY_DISABLE_GLASS_EFFECT
+  @available(macOS 26.0, *)
+  struct GlassEffectView: NSViewRepresentable {
+    let glassEffectView = NSGlassEffectView()
 
-  var style: NSGlassEffectView.Style = .regular
+    var style: NSGlassEffectView.Style = .regular
 
-  func makeNSView(context: Context) -> NSGlassEffectView {
-    return glassEffectView
+    func makeNSView(context: Context) -> NSGlassEffectView {
+      return glassEffectView
+    }
+
+    func updateNSView(_ view: NSGlassEffectView, context: Context) {
+      glassEffectView.style = style
+    }
   }
-
-  func updateNSView(_ view: NSGlassEffectView, context: Context) {
-    glassEffectView.style = style
+#else
+  struct GlassEffectView: View {
+    var body: some View {
+      VisualEffectView()
+    }
   }
-}
+#endif
 
 #Preview {
   VisualEffectView(
