@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -57,6 +57,30 @@ jobs:
             grep -n -i -C 8 "error:" build/logs/xcodebuild.log || true
             grep -n -i -C 8 "failed" build/logs/xcodebuild.log || true
           fi
+
+      - name: Commit build failure summary
+        if: failure()
+        run: |
+          {
+            echo "Build failed at $(date -u)"
+            echo
+            echo "Commit: $GITHUB_SHA"
+            echo
+            if [ -f build/logs/xcodebuild.log ]; then
+              echo "Errors:"
+              grep -n -i -C 12 "error:" build/logs/xcodebuild.log || true
+              echo
+              echo "Failures:"
+              grep -n -i -C 12 "failed" build/logs/xcodebuild.log || true
+            else
+              echo "build/logs/xcodebuild.log was not found."
+            fi
+          } > build-failure.log
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add build-failure.log
+          git commit -m "ci: capture build failure [skip ci]" || exit 0
+          git push
 
       - name: Inspect app
         run: |
