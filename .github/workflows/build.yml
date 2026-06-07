@@ -55,6 +55,15 @@ jobs:
           test -d build/DerivedData/Build/Products/Release/Maccy.app
           du -sh build/DerivedData/Build/Products/Release/Maccy.app
 
+      - name: Archive app
+        run: |
+          ditto \
+            -c \
+            -k \
+            --keepParent \
+            build/DerivedData/Build/Products/Release/Maccy.app \
+            build/Maccy.app.zip
+
       - name: Create DMG
         run: |
           mkdir -p build/dmg-root
@@ -71,6 +80,12 @@ jobs:
         with:
           name: Maccy-dmg
           path: build/Maccy.dmg
+
+      - name: Upload app
+        uses: actions/upload-artifact@v7
+        with:
+          name: Maccy-app
+          path: build/Maccy.app.zip
 
       - name: Upload build logs
         if: always()
