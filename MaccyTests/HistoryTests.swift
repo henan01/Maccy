@@ -171,6 +171,24 @@ class HistoryTests: XCTestCase {
     XCTAssertEqual(history.items[0].text, "bar")
   }
 
+  func testDuplicateDoesNotKeepStaleSessionLogEntry() {
+    Clipboard.shared.changeCount = 100
+    history.add(historyItem("foo"))
+
+    Clipboard.shared.changeCount = 101
+    let duplicateDecorator = history.add(historyItem("foo"))
+
+    let modifiedItem = historyItem("bar")
+    modifiedItem.contents.append(HistoryItemContent(
+      type: NSPasteboard.PasteboardType.modified.rawValue,
+      value: "100".data(using: .utf8)
+    ))
+    let modifiedItemDecorator = history.add(modifiedItem)
+
+    XCTAssertEqual(history.items, [modifiedItemDecorator, duplicateDecorator])
+    XCTAssertEqual(history.items[0].text, "bar")
+  }
+
   func testClearingUnpinned() {
     let pinned = history.add(historyItem("foo"))
     pinned.togglePin()

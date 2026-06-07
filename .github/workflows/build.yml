@@ -1,0 +1,55 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - "**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build DMG
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Resolve packages
+        run: xcodebuild -resolvePackageDependencies -project Maccy.xcodeproj -scheme Maccy
+
+      - name: Build app
+        run: |
+          xcodebuild \
+            -project Maccy.xcodeproj \
+            -scheme Maccy \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="-" \
+            DEVELOPMENT_TEAM="" \
+            build
+
+      - name: Create DMG
+        run: |
+          mkdir -p build/dmg-root
+          ditto build/DerivedData/Build/Products/Release/Maccy.app build/dmg-root/Maccy.app
+          hdiutil create \
+            -volname Maccy \
+            -srcfolder build/dmg-root \
+            -ov \
+            -format UDZO \
+            build/Maccy.dmg
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: Maccy-dmg
+          path: build/Maccy.dmg

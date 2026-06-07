@@ -22,15 +22,19 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
   var searchQuery: String = "" {
     didSet {
       throttler.throttle { [self] in
-        updateItems(search.search(string: searchQuery, within: all))
+        let query = searchQuery
+        Task { @MainActor in
+          if query.isEmpty {
+            try? await load()
+            AppState.shared.navigator.select(item: unpinnedItems.first)
+          } else {
+            try? loadSearchableItems()
+            updateItems(search.search(string: query, within: all), query: query)
+            AppState.shared.navigator.highlightFirst()
+          }
 
-        if searchQuery.isEmpty {
-          AppState.shared.navigator.select(item: unpinnedItems.first)
-        } else {
-          AppState.shared.navigator.highlightFirst()
+          AppState.shared.popup.needsResize = true
         }
-
-        AppState.shared.popup.needsResize = true
       }
     }
   }
@@ -55,12 +59,22 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
   private let search = Search()
   private let sorter = Sorter()
   private let throttler = Throttler(minimumDelay: 0.2)
+  private let pageSize = 200
 
   @ObservationIgnored
   private var sessionLog: [Int: HistoryItem] = [:]
 
+  @ObservationIgnored
+  private var loadedUnpinnedItemsCount = 0
+
+  @ObservationIgnored
+  private var hasMoreUnpinnedItems = true
+
+  @ObservationIgnored
+  private var isLoadingMoreItems = false
+
   // The distinction between `all` and `items` is the following:
-  // - `all` stores all history items, even the ones that are currently hidden by a search
+  // - `all` stores all loaded history items, even the ones that are currently hidden by a search
   // - `items` stores only visible history items, updated during a search
   @ObservationIgnored
   var all: [HistoryItemDecorator] = []
@@ -103,17 +117,108 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
 
   @MainActor
   func load() async throws {
-    let descriptor = FetchDescriptor<HistoryItem>()
-    let results = try Storage.shared.context.fetch(descriptor)
-    all = sorter.sort(results).map { HistoryItemDecorator($0) }
-    items = all
+    loadedUnpinnedItemsCount = 0
+    hasMoreUnpinnedItems = true
 
-    limitHistorySize(to: Defaults[.size])
+    let pinned = try fetchPinnedItems()
+    let unpinned = try fetchUnpinnedItems(offset: 0, limit: pageSize)
+
+    loadedUnpinnedItemsCount = unpinned.count
+    hasMoreUnpinnedItems = unpinned.count == pageSize
+
+    all = sortPinnedDecorators(
+      pinned.map { HistoryItemDecorator($0) },
+      unpinned.map { HistoryItemDecorator($0) }
+    )
+    items = all
 
     updateShortcuts()
     // Ensure that panel size is proper *after* loading all items.
     Task {
       AppState.shared.popup.needsResize = true
+    }
+  }
+
+  @MainActor
+  private func loadSearchableItems() throws {
+    let descriptor = FetchDescriptor<HistoryItem>()
+    let results = try Storage.shared.context.fetch(descriptor)
+    all = sorter.sort(results).map { HistoryItemDecorator($0) }
+    items = all
+    updateShortcuts()
+  }
+
+  @MainActor
+  func loadMoreIfNeeded(currentItem item: HistoryItemDecorator) {
+    guard searchQuery.isEmpty else { return }
+    guard hasMoreUnpinnedItems else { return }
+    guard !isLoadingMoreItems else { return }
+    guard unpinnedItems.suffix(20).contains(item) else { return }
+
+    isLoadingMoreItems = true
+    Task { @MainActor in
+      defer { isLoadingMoreItems = false }
+
+      guard let nextItems = try? fetchUnpinnedItems(offset: loadedUnpinnedItemsCount, limit: pageSize) else {
+        return
+      }
+
+      loadedUnpinnedItemsCount += nextItems.count
+      hasMoreUnpinnedItems = nextItems.count == pageSize
+
+      let nextDecorators = nextItems.map { HistoryItemDecorator($0) }
+      if Defaults[.pinTo] == .bottom,
+         let firstPinnedIndex = all.firstIndex(where: \.isPinned) {
+        all.insert(contentsOf: nextDecorators, at: firstPinnedIndex)
+      } else {
+        all.append(contentsOf: nextDecorators)
+      }
+      items = all
+      updateUnpinnedShortcuts()
+      AppState.shared.popup.needsResize = true
+    }
+  }
+
+  private func sortPinnedDecorators(
+    _ pinned: [HistoryItemDecorator],
+    _ unpinned: [HistoryItemDecorator]
+  ) -> [HistoryItemDecorator] {
+    if Defaults[.pinTo] == .bottom {
+      return unpinned + pinned
+    } else {
+      return pinned + unpinned
+    }
+  }
+
+  @MainActor
+  private func fetchPinnedItems() throws -> [HistoryItem] {
+    var descriptor = FetchDescriptor<HistoryItem>(
+      predicate: #Predicate { $0.pin != nil },
+      sortBy: sortDescriptors()
+    )
+    descriptor.fetchLimit = HistoryItem.supportedPins.count
+    return try Storage.shared.context.fetch(descriptor)
+  }
+
+  @MainActor
+  private func fetchUnpinnedItems(offset: Int, limit: Int) throws -> [HistoryItem] {
+    var descriptor = FetchDescriptor<HistoryItem>(
+      predicate: #Predicate { $0.pin == nil },
+      sortBy: sortDescriptors()
+    )
+    descriptor.fetchOffset = offset
+    descriptor.fetchLimit = limit
+    return try Storage.shared.context.fetch(descriptor)
+  }
+
+  private func sortDescriptors() -> [SortDescriptor<HistoryItem>] {
+    switch Defaults[.sortBy] {
+    case .firstCopiedAt:
+      return [SortDescriptor(\.firstCopiedAt, order: .reverse)]
+    case .numberOfCopies:
+      return [SortDescriptor(\.numberOfCopies, order: .reverse)]
+    default:
+      return [SortDescriptor(\.lastCopiedAt, order: .reverse)]
     }
   }
 
@@ -171,8 +276,6 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
     // if a duplicate was found as then the size already stayed the same.
     limitHistorySize(to: Defaults[.size] - 1)
 
-    sessionLog[Clipboard.shared.changeCount] = item
-
     var itemDecorator: HistoryItemDecorator
     if let pin = item.pin {
       itemDecorator = HistoryItemDecorator(item, shortcuts: KeyShortcut.create(character: pin))
@@ -193,7 +296,21 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
       AppState.shared.popup.needsResize = true
     }
 
+    sessionLog[Clipboard.shared.changeCount] = item
+    pruneSessionLog(retaining: item)
+
     return itemDecorator
+  }
+
+  @MainActor
+  private func pruneSessionLog(retaining item: HistoryItem? = nil) {
+    sessionLog.removeValues { loggedItem in
+      if let item, loggedItem === item {
+        return false
+      }
+
+      return !all.contains { $0.item === loggedItem }
+    }
   }
 
   @MainActor
@@ -445,9 +562,16 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
 
   @MainActor
   private func findSimilarItem(_ item: HistoryItem) -> HistoryItem? {
-    let descriptor = FetchDescriptor<HistoryItem>()
-    if let all = try? Storage.shared.context.fetch(descriptor) {
-      let duplicates = all.filter({ $0 == item || $0.supersedes(item) })
+    let title = item.title
+    let descriptor = FetchDescriptor<HistoryItem>(
+      predicate: #Predicate { $0.title == title }
+    )
+    if let titleCandidates = try? Storage.shared.context.fetch(descriptor) {
+      let loadedCandidates = all.map(\.item)
+      let candidates = loadedCandidates + titleCandidates.filter { candidate in
+        !loadedCandidates.contains { $0 == candidate }
+      }
+      let duplicates = candidates.filter({ $0 == item || $0.supersedes(item) })
       if duplicates.count > 1 {
         return duplicates.first(where: { $0 != item })
       } else {
@@ -466,10 +590,11 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
     return nil
   }
 
-  private func updateItems(_ newItems: [Search.SearchResult]) {
+  private func updateItems(_ newItems: [Search.SearchResult], query: String? = nil) {
+    let query = query ?? searchQuery
     items = newItems.map { result in
       let item = result.object
-      item.highlight(searchQuery, result.ranges)
+      item.highlight(query, result.ranges)
 
       return item
     }
