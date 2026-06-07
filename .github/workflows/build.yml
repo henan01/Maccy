@@ -50,6 +50,14 @@ jobs:
             build \
             2>&1 | tee build/logs/xcodebuild.log
 
+      - name: Print build errors
+        if: failure()
+        run: |
+          if [ -f build/logs/xcodebuild.log ]; then
+            grep -n -i -C 8 "error:" build/logs/xcodebuild.log || true
+            grep -n -i -C 8 "failed" build/logs/xcodebuild.log || true
+          fi
+
       - name: Inspect app
         run: |
           test -d build/DerivedData/Build/Products/Release/Maccy.app

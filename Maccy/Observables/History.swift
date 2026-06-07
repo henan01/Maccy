@@ -204,9 +204,8 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
     var descriptor = FetchDescriptor<HistoryItem>(
       predicate: #Predicate { $0.pin == nil }
     )
-    descriptor.fetchOffset = offset
-    descriptor.fetchLimit = limit
-    return sorter.sort(try Storage.shared.context.fetch(descriptor))
+    descriptor.fetchLimit = offset + limit
+    return Array(sorter.sort(try Storage.shared.context.fetch(descriptor)).dropFirst(offset))
   }
 
   @MainActor
