@@ -9,33 +9,51 @@ on:
 permissions:
   contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     name: Build DMG
-    runs-on: macos-latest
+    runs-on: macos-15
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Show Xcode version
-        run: xcodebuild -version
+        run: |
+          xcodebuild -version
+          xcode-select -p
 
       - name: Resolve packages
-        run: xcodebuild -resolvePackageDependencies -project Maccy.xcodeproj -scheme Maccy
+        run: |
+          mkdir -p build/logs
+          xcodebuild \
+            -resolvePackageDependencies \
+            -project Maccy.xcodeproj \
+            -scheme Maccy \
+            -derivedDataPath build/DerivedData \
+            2>&1 | tee build/logs/resolve-packages.log
 
       - name: Build app
         run: |
+          set -o pipefail
           xcodebuild \
             -project Maccy.xcodeproj \
             -scheme Maccy \
             -configuration Release \
             -destination 'platform=macOS' \
             -derivedDataPath build/DerivedData \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="-" \
-            DEVELOPMENT_TEAM="" \
-            build
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build \
+            2>&1 | tee build/logs/xcodebuild.log
+
+      - name: Inspect app
+        run: |
+          test -d build/DerivedData/Build/Products/Release/Maccy.app
+          du -sh build/DerivedData/Build/Products/Release/Maccy.app
 
       - name: Create DMG
         run: |
@@ -49,7 +67,14 @@ jobs:
             build/Maccy.dmg
 
       - name: Upload DMG
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Maccy-dmg
           path: build/Maccy.dmg
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-logs
+          path: build/logs
