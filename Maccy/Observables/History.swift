@@ -193,33 +193,20 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
   @MainActor
   private func fetchPinnedItems() throws -> [HistoryItem] {
     var descriptor = FetchDescriptor<HistoryItem>(
-      predicate: #Predicate { $0.pin != nil },
-      sortBy: sortDescriptors()
+      predicate: #Predicate { $0.pin != nil }
     )
     descriptor.fetchLimit = HistoryItem.supportedPins.count
-    return try Storage.shared.context.fetch(descriptor)
+    return sorter.sort(try Storage.shared.context.fetch(descriptor))
   }
 
   @MainActor
   private func fetchUnpinnedItems(offset: Int, limit: Int) throws -> [HistoryItem] {
     var descriptor = FetchDescriptor<HistoryItem>(
-      predicate: #Predicate { $0.pin == nil },
-      sortBy: sortDescriptors()
+      predicate: #Predicate { $0.pin == nil }
     )
     descriptor.fetchOffset = offset
     descriptor.fetchLimit = limit
-    return try Storage.shared.context.fetch(descriptor)
-  }
-
-  private func sortDescriptors() -> [SortDescriptor<HistoryItem>] {
-    switch Defaults[.sortBy] {
-    case .firstCopiedAt:
-      return [SortDescriptor(\.firstCopiedAt, order: .reverse)]
-    case .numberOfCopies:
-      return [SortDescriptor(\.numberOfCopies, order: .reverse)]
-    default:
-      return [SortDescriptor(\.lastCopiedAt, order: .reverse)]
-    }
+    return sorter.sort(try Storage.shared.context.fetch(descriptor))
   }
 
   @MainActor

@@ -93,3 +93,4 @@ jobs:
         with:
           name: build-logs
           path: build/logs
+          if-no-files-found: ignore
