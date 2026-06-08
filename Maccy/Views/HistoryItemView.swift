@@ -31,6 +31,13 @@ struct HistoryItemView: View {
 
   @Environment(AppState.self) private var appState
 
+  private func selectItem() {
+    appState.navigator.selectWithoutScrolling(item: item)
+    Task {
+      appState.history.select(item)
+    }
+  }
+
   var body: some View {
     ListItemView(
       id: item.id,
@@ -54,10 +61,11 @@ struct HistoryItemView: View {
       if NSEvent.modifierFlags.contains(.command) && appState.multiSelectionEnabled {
         appState.navigator.addToSelection(item: item)
       } else {
-        Task {
-          appState.history.select(item)
-        }
+        selectItem()
       }
+    }
+    .onTapGesture(count: 2) {
+      selectItem()
     }
   }
 }

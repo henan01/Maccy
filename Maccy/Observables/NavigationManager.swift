@@ -33,8 +33,21 @@ class NavigationManager { // swiftlint:disable:this type_body_length
     didSet {
       guard oldValue?.id != leadHistoryItem?.id else { return }
 
-      if leadHistoryItem == nil {
-        AppState.shared.preview.cancelAutoOpen()
+      let preview = AppState.shared.preview
+      if leadHistoryItem != nil {
+        guard !isKeyboardNavigating else {
+          preview.cancelAutoOpen()
+          return
+        }
+
+        preview.resetAutoOpenSuppression()
+        if preview.state.isOpen {
+          updatePreviewSelection()
+        } else {
+          preview.startAutoOpen()
+        }
+      } else {
+        preview.cancelAutoOpen()
       }
     }
   }
