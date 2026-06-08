@@ -404,6 +404,14 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
   }
 
   @MainActor
+  private func pasteAfterPopupCloses() {
+    Task { @MainActor in
+      try? await Task.sleep(for: .milliseconds(100))
+      Clipboard.shared.paste()
+    }
+  }
+
+  @MainActor
   func select(_ item: HistoryItemDecorator?) {
     guard let item else {
       return
@@ -415,7 +423,7 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
       AppState.shared.popup.close()
       Clipboard.shared.copy(item.item, removeFormatting: Defaults[.removeFormattingByDefault])
       if Defaults[.pasteByDefault] {
-        Clipboard.shared.paste()
+        pasteAfterPopupCloses()
       }
     } else {
       switch HistoryItemAction(modifierFlags) {
@@ -425,11 +433,11 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
       case .paste:
         AppState.shared.popup.close()
         Clipboard.shared.copy(item.item)
-        Clipboard.shared.paste()
+        pasteAfterPopupCloses()
       case .pasteWithoutFormatting:
         AppState.shared.popup.close()
         Clipboard.shared.copy(item.item, removeFormatting: true)
-        Clipboard.shared.paste()
+        pasteAfterPopupCloses()
       case .unknown:
         return
       }
@@ -468,7 +476,7 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
       case .pasteWithoutFormatting:
         AppState.shared.popup.close()
         Clipboard.shared.copy(item.item, removeFormatting: true)
-        Clipboard.shared.paste()
+        pasteAfterPopupCloses()
       case .unknown:
         return
       }

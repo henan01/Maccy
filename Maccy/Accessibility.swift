@@ -7,5 +7,9 @@ struct Accessibility {
     guard !allowed else {
       return
     }
+
+    AXIsProcessTrustedWithOptions([
+      kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
+    ] as CFDictionary)
   }
 }
