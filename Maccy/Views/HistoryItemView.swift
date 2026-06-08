@@ -64,8 +64,5 @@ struct HistoryItemView: View {
         selectItem()
       }
     }
-    .onTapGesture(count: 2) {
-      selectItem()
-    }
   }
 }
