@@ -28,7 +28,11 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
             try? await load()
             AppState.shared.navigator.select(item: unpinnedItems.first)
           } else {
-            try? loadSearchableItems()
+            if query.count > 1 {
+              try? loadSearchableItems()
+            } else {
+              try? await load()
+            }
             updateItems(search.search(string: query, within: all), query: query)
             AppState.shared.navigator.highlightFirst()
           }
@@ -58,7 +62,7 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
 
   private let search = Search()
   private let sorter = Sorter()
-  private let throttler = Throttler(minimumDelay: 0.2)
+  private let throttler = Throttler(minimumDelay: 0.8)
   private let pageSize = 50
 
   @ObservationIgnored

@@ -35,7 +35,11 @@ class NavigationManager { // swiftlint:disable:this type_body_length
       let preview = AppState.shared.preview
       if leadHistoryItem != nil {
         preview.resetAutoOpenSuppression()
-        preview.startAutoOpen()
+        if isKeyboardNavigating {
+          preview.cancelAutoOpen()
+        } else {
+          preview.startAutoOpen()
+        }
       } else {
         preview.cancelAutoOpen()
       }
@@ -62,7 +66,23 @@ class NavigationManager { // swiftlint:disable:this type_body_length
     }
   }
 
-  private func scroll(to id: UUID?, item: HistoryItemDecorator? = nil) {
+  private func scroll(to id: UUID?, item: HistoryItemDecorator? = nil, force: Bool = false) {
+    guard force else {
+      let visibleItems = history.visibleItems
+      guard let item,
+            let index = visibleItems.firstIndex(of: item) else {
+        scrollTarget = id
+        return
+      }
+
+      if index > 2 && index < visibleItems.count - 3 {
+        return
+      }
+
+      scrollTarget = id
+      return
+    }
+
     scrollTarget = id
   }
 
@@ -183,6 +203,7 @@ class NavigationManager { // swiftlint:disable:this type_body_length
   ) {
     isKeyboardNavigating = true
     isManualMultiSelect = false
+    AppState.shared.preview.cancelAutoOpen()
     select(item: item, footerItem: footerItem)
   }
 
