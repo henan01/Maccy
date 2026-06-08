@@ -19,6 +19,7 @@ class NavigationManager { // swiftlint:disable:this type_body_length
   }
 
   var scrollTarget: UUID?
+  var previewHistoryItem: HistoryItemDecorator?
   var leadSelection: UUID? {
     if let item = leadHistoryItem {
       return item.id
@@ -32,16 +33,8 @@ class NavigationManager { // swiftlint:disable:this type_body_length
     didSet {
       guard oldValue?.id != leadHistoryItem?.id else { return }
 
-      let preview = AppState.shared.preview
-      if leadHistoryItem != nil {
-        preview.resetAutoOpenSuppression()
-        if isKeyboardNavigating {
-          preview.cancelAutoOpen()
-        } else {
-          preview.startAutoOpen()
-        }
-      } else {
-        preview.cancelAutoOpen()
+      if leadHistoryItem == nil {
+        AppState.shared.preview.cancelAutoOpen()
       }
     }
   }
@@ -191,10 +184,15 @@ class NavigationManager { // swiftlint:disable:this type_body_length
 
   private func selectInFooter(_ item: FooterItem) {
     leadHistoryItem = nil
+    previewHistoryItem = nil
     if !isMultiSelectInProgress {
       selection = .init()
     }
     footer.selectedItem = item
+  }
+
+  func updatePreviewSelection() {
+    previewHistoryItem = leadHistoryItem
   }
 
   private func selectFromKeyboardNavigation(

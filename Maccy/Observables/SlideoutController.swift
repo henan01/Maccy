@@ -148,6 +148,7 @@ class SlideoutController {
     if !state.isOpen {
       let navigator = AppState.shared.navigator
       guard navigator.leadHistoryItem != nil || navigator.pasteStackSelected else { return }
+      navigator.updatePreviewSelection()
     }
 
     if trigger == .manual {
