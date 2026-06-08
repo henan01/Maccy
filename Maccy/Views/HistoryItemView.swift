@@ -34,7 +34,7 @@ struct HistoryItemView: View {
   private func selectItem() {
     appState.navigator.selectWithoutScrolling(item: item)
     Task {
-      appState.history.select(item)
+      await appState.select()
     }
   }
 
