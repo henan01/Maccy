@@ -59,7 +59,7 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
   private let search = Search()
   private let sorter = Sorter()
   private let throttler = Throttler(minimumDelay: 0.2)
-  private let pageSize = 200
+  private let pageSize = 50
 
   @ObservationIgnored
   private var sessionLog: [Int: HistoryItem] = [:]
@@ -153,7 +153,7 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
     guard searchQuery.isEmpty else { return }
     guard hasMoreUnpinnedItems else { return }
     guard !isLoadingMoreItems else { return }
-    guard unpinnedItems.suffix(20).contains(item) else { return }
+    guard unpinnedItems.suffix(10).contains(item) else { return }
 
     isLoadingMoreItems = true
     Task { @MainActor in

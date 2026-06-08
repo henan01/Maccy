@@ -157,6 +157,10 @@ class HistoryItem {
     return data
   }
 
+  var hasImage: Bool {
+    contentData([.tiff, .png, .jpeg, .heic]) != nil || (universalClipboardImage && fileURLs.first != nil)
+  }
+
   var image: NSImage? {
     guard let data = imageData else {
       return nil
