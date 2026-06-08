@@ -64,6 +64,7 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
   private let sorter = Sorter()
   private let throttler = Throttler(minimumDelay: 0.8)
   private let pageSize = 50
+  private let maxResidentUnpinnedItems = 150
 
   @ObservationIgnored
   private var sessionLog: [Int: HistoryItem] = [:]
@@ -301,9 +302,42 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
     }
 
     sessionLog[Clipboard.shared.changeCount] = item
+    trimResidentItemsIfNeeded(retaining: itemDecorator)
     pruneSessionLog(retaining: item)
 
     return itemDecorator
+  }
+
+  @MainActor
+  private func trimResidentItemsIfNeeded(retaining retainedItem: HistoryItemDecorator? = nil) {
+    guard searchQuery.isEmpty else { return }
+
+    let unpinned = all.filter(\.isUnpinned)
+    guard unpinned.count > maxResidentUnpinnedItems else {
+      loadedUnpinnedItemsCount = unpinned.count
+      return
+    }
+
+    let removableItems = unpinned.dropFirst(maxResidentUnpinnedItems).filter { item in
+      if let retainedItem, item == retainedItem {
+        return false
+      }
+
+      return true
+    }
+
+    for item in removableItems {
+      cleanup(item)
+    }
+
+    all.removeAll { item in
+      removableItems.contains(item)
+    }
+    items.removeAll { item in
+      removableItems.contains(item)
+    }
+
+    loadedUnpinnedItemsCount = all.filter(\.isUnpinned).count
   }
 
   @MainActor
